@@ -1,4 +1,7 @@
-# Jenkins CI/CD with Docker on RedHat UBI8
+# Jenkins CI/CD with Docker on RedHat UBI8  
+![Jenkins](https://img.shields.io/badge/Jenkins-CI%2FCD-blue)  
+![Docker](https://img.shields.io/badge/Docker-Image-green)  
+![JFrog](https://img.shields.io/badge/JFrog-Artifactory-orange)
 
 This repository demonstrates a full CI/CD pipeline using Jenkins running in a custom Docker container based on RedHat UBI 8. The pipeline builds a Docker image of a Node.js application and pushes it to Docker Hub.
 
@@ -45,18 +48,18 @@ USER $JENKINS_USER
 ENTRYPOINT ["java", "-jar", "/opt/jenkins.war"]
 ```
 
-## 🏗️ Docker commands:
+## 🧱 Docker Setup
 ### build image 
 
 ```docker build -t jenkins-ubi . ```
 
-### create volume for jenkins
+### 🗃️ Create Jenkins Volume
 
 ```
 docker volume create jenkins_data
 ```
 
-### create network for jenkins
+### 🌐 Create Docker Network
 
 ```
 docker network create jenkins-net
@@ -78,7 +81,7 @@ docker run -d \
 
 ## 🚀 Jenkins Pipeline (Jenkinsfile)
 
-```Jenkinsfile
+```groovy
 
 pipeline {
     agent any
@@ -139,15 +142,169 @@ pipeline {
    - **Username**: your Docker Hub username (e.g., `YOUR DOCKER HUB USER NAME`)
    - **Password**: your Docker Hub password or personal access token
 
-## 📦 Push Docker Image to Docker Hub
-Make sure your IMAGE_NAME is in the format username/repo and you are logged in to Docker Hub.
-Example image name:
-
+## 📦 Image Naming & Push to Docker Hub
+•	Make sure your IMAGE_NAME is in the format:
+```
+username/repository-name
+```
+•	The image will be tagged as:
 ```
 IMAGE_NAME = ${IMAGE_NAME}:${IMAGE_TAG}
 ```
 
+## 📦 Archive Build Artifact in Jenkins
 
-### ✨ Author
-## Created by Costa Epshtein
+The pipeline also creates and stores an artifact (tar.gz) of the working directory:
+
+### 🔁 In Jenkinsfile:
+
+```groovy
+sh 'mkdir -p build'
+sh 'tar --exclude=build -czf build/artifact.tar.gz .'
+archiveArtifacts artifacts: 'build/*.tar.gz', followSymlinks: false
+```
+•   This step is done inside the source/ folder
+
+•   The archive will appear in Jenkins under "Artifacts" of the job run
+
+You can use this artifact in later stages (deployment, backup, etc.) or download it manually.
+
+
+## ☁️ Push Docker Image to JFrog Artifactory
+
+In addition to Docker Hub, this pipeline supports pushing the image to a private JFrog Artifactory Docker registry.
+
+### JFrog Push Section.
+
+### 🔐 JFrog Credentials
+
+1. Go to **Jenkins > Manage Jenkins > Credentials**
+
+2. Add a new **Username/Password** credential:
+
+    - **ID**: jfrog-docker
+
+    - **Username**: your JFrog username or email (e.g., `YOUR JFROG USER NAME`)
+
+    - **Password**: API token from your JFrog account
+
+### 🧱 Add Push to JFrog Stage to Jenkinsfile
+
+```groovy
+
+stage('Push to JFrog') {
+    steps {
+        withCredentials([usernamePassword(credentialsId: 'jfrog-docker', usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASS')]) {
+            sh '''
+                echo "$JFROG_PASS" | docker login XXXXXXX.jfrog.io --username "$JFROG_USER" --password-stdin
+
+                docker tag ${IMAGE_NAME}:${IMAGE_TAG} XXXXXXX.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                docker push XXXXXXX.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+            '''
+        }
+    }
+}
+
+```
+
+*🔁 Replace XXXXXXX.jfrog.io with your actual JFrog domain if needed.*
+
+### 🔎 Verify Image in JFrog
+
+•   To confirm that the image has been successfully pushed:
+
+1. Login to your JFrog Artifactory web UI
+
+2. Navigate to Artifactory > Artifacts > docker-local
+
+    •   You should see your image folder (e.g., costadevop/my-portfolio) with the appropriate tags
+
+3. You can also pull the image manually:
+
+```groovy
+docker pull XXXXXXX.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+```
+
+---
+
+## 🧩 Optional: Need More Sections?
+
+If you'd like to expand your Jenkins CI/CD setup, I can help you create detailed sections for the following topics:
+
+### 🔌 Recommended Jenkins Plugins
+
+A list of must-have plugins for Docker and CI/CD workflows, including:
+- **Docker Pipeline**
+- **Pipeline: GitHub**
+- **GitHub Branch Source**
+- **Blue Ocean**
+- **Credentials Binding**
+- **Environment Injector**
+- **Pipeline: Stage View**
+
+These plugins enhance usability, visualization, Docker integration, and secure credentials management.
+
+---
+
+### 🧰 Troubleshooting Guide
+
+Solve common issues with Jenkins running inside Docker:
+
+#### 🔧 Docker socket permission denied:
+Make sure the container runs with:
+```bash
+-v /var/run/docker.sock:/var/run/docker.sock
+```
+And that the Jenkins user inside the container has access to Docker (use root or add the user to the docker group).
+
+## 🛠️ Troubleshooting
+
+### ❌ Cannot push to Docker Hub
+
+- Check that your credentials (`dockerhub` ID) are configured correctly in **Jenkins > Manage Jenkins > Credentials**
+- Ensure the image name format is `username/repo`
+- If you’re using Docker Hub tokens, double-check the token permissions
+
+---
+
+### 🧱 Git Checkout Fails
+
+- Verify the Git URL is correct and public, or add credentials if the repo is private
+- Check that `git` is installed in the Jenkins container (you can test with `git --version` in a pipeline step)
+
+---
+
+## 💾 Jenkins Backup & Restore with Volume
+
+### Backup Jenkins Home
+
+Jenkins stores all configuration and job data in `/var/lib/jenkins`.  
+If you’re using a Docker volume (e.g., `jenkins_data`), you can back it up with:
+
+```bash
+
+docker run --rm \
+  -v jenkins_data:/jenkins_data \
+  -v $(pwd):/backup \
+  busybox \
+  tar czvf /backup/jenkins_backup.tar.gz -C /jenkins_data .
+
+```
+
+## ✨ Author
+Created with 💙 by Costa Epshtein
+
+## 📝 License
+
+This project is licensed under the [MIT License](LICENSE). 
+You are free to use, modify, and distribute this code as long as the original license is included.
+
+## 🤝 Contributing
+
+Contributions are welcome and greatly appreciated!
+
+If you have suggestions for improvements, feel free to fork the repository and submit a pull request.  
+For major changes, please open an issue first to discuss what you would like to change.
+
+Please make sure your contributions follow the existing code style and pass any CI checks before submitting.
 

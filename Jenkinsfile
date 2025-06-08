@@ -29,6 +29,22 @@ pipeline {
                     sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                     sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                     sh 'docker images -a'
+                    sh 'mkdir -p build'
+                    sh 'tar -czf build/artifact.tar.gz .'
+                   rchiveArtifacts artifacts: 'build/*.tar.gz', followSymlinks: false
+                }
+            }
+        }
+
+        stage('Push to JFrog') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'jfrog-docker', usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASS')]) {
+                    sh '''
+                        echo "$JFROG_PASS" | docker login trialam94b7.jfrog.io --username "$JFROG_USER" --password-stdin
+
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                    '''
                 }
             }
         }
