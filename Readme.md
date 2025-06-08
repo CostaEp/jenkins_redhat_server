@@ -7,6 +7,10 @@ This repository demonstrates a full CI/CD pipeline using Jenkins running in a cu
 
 ---
 
+<p align="center">
+  <img src="proj-image.png" width="auto" alt="CI Pipeline Screenshot"/>
+</p>
+
 ## 📁 Project Structure
 
 ```shell
