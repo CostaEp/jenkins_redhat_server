@@ -15,10 +15,12 @@ jenkins_redhat_server/
 │
 ├── Dockerfile                # Jenkins custom image (UBI8)
 ├── Jenkins-CI/
-│   └── Jenkinsfile           # CI pipeline
-├── Jenkinse-CD/
-│   └── Jenkinsfile           # CD pipeline
-└── README.md
+│   ├── Jenkinsfile           # CI pipeline
+│   └── README.md             # about ci pipeline
+├── Jenkins-CD/
+│   ├── Jenkinsfile           # CD pipeline
+│   └── README.md             # about cd pipeline
+└── README.md                 # main readme full description
 
 ```
 
