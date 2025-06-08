@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['DEV', 'PROD'],
+            description: 'Choose environment to deploy from'
+        )
+    }
+
+    environment {
+        DOCKER_USERNAME = 'costadevop'
+        IMAGE_NAME = "${DOCKER_USERNAME}/my-portfolio"
+        TAG  = "latest"
+        JFROG_REGISTRY = "trialam94b7.jfrog.io/docker-local"
+    }
+
+    stages {
+        stage('Pull Docker Image') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'DEV') {
+                        withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh '''
+                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                                docker pull ${IMAGE_NAME}:${TAG}
+                            '''
+                        }
+                    } else if (params.ENVIRONMENT == 'PROD') {
+                        withCredentials([usernamePassword(credentialsId: 'jfrog-docker', usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASS')]) {
+                            sh '''
+                                echo "$JFROG_PASS" | docker login $JFROG_REGISTRY --username "$JFROG_USER" --password-stdin
+                                docker pull $JFROG_REGISTRY/${IMAGE_NAME}:${TAG}
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                script {
+                    def finalImage = params.ENVIRONMENT == 'PROD' 
+                        ? "${env.JFROG_REGISTRY}/${IMAGE_NAME}:${TAG}" 
+                        : "${IMAGE_NAME}:${TAG}"
+
+                    sh '''
+                        docker rm -f my-portfolio || true
+                        docker run -d \
+                            --name my-portfolio \
+                            -p 8082:3000 \
+                            ''' + finalImage + '''
+                    '''
+                }
+            }
+        }
+
+        stage('Access Info') {
+            steps {
+                echo "Your app is running at: http://localhost:8082"
+            }
+        }
+    }
+}

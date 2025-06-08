@@ -7,6 +7,21 @@ This repository demonstrates a full CI/CD pipeline using Jenkins running in a cu
 
 ---
 
+## 📁 Project Structure
+
+```shell
+
+jenkins_redhat_server/
+│
+├── Dockerfile                # Jenkins custom image (UBI8)
+├── Jenkins-CI/
+│   └── Jenkinsfile           # CI pipeline
+├── Jenkinse-CD/
+│   └── Jenkinsfile           # CD pipeline
+└── README.md
+
+```
+
 ## 🏗️ Custom Jenkins Dockerfile
 
 The Jenkins image is based on UBI8 with Java 17, Docker CLI, Git, and Jenkins WAR installed:
@@ -79,16 +94,24 @@ docker run -d \
   jenkins-ubi
   ```
 
-## 🚀 Jenkins Pipeline (Jenkinsfile)
+## 🚀 Jenkins Pipeline ['Checkout','Build Docker Image','Push'] (CI)
 
 ```groovy
 
 pipeline {
     agent any
 
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['DEV', 'PROD'],
+            description: 'Choose the environment to deploy to'
+        )
+    }
+
     environment {
-        DOCKER_USERNAME = 'YOUR DOCKER HUB USER NAME'
-        IMAGE_NAME = "${DOCKER_USERNAME}/YOUR IMAGE NAME"
+        DOCKER_USERNAME = 'costadevop'
+        IMAGE_NAME = "${DOCKER_USERNAME}/my-portfolio"
         IMAGE_TAG  = "${BUILD_NUMBER}"
     }
 
@@ -102,7 +125,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 dir('source') {
-                    git branch: 'main', url: 'https://github.com/REPO NAME.....'
+                    git branch: 'main', url: 'https://github.com/CostaEp/my-portfolio'
                 }
             }
         }
@@ -114,11 +137,42 @@ pipeline {
                     sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                     sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                     sh 'docker images -a'
+                    sh 'mkdir -p build'
+                    sh 'tar --exclude=build -czf build/artifact.tar.gz .'
+                    // archiveArtifacts artifacts: 'build/*.tar.gz', followSymlinks: false
+                }
+            }
+        }
+
+        stage('Push to JFrog') {
+            when {
+                expression { params.ENVIRONMENT == 'PROD' }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'jfrog-docker', usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASS')]) {
+                    // sh '''
+                    //     echo "$JFROG_PASS" | docker login trialam94b7.jfrog.io --username "$JFROG_USER" --password-stdin
+
+                    //     docker tag ${IMAGE_NAME}:${IMAGE_TAG} trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                    //     docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                    // '''
+                    sh '''
+                        echo "$JFROG_PASS" | docker login trialam94b7.jfrog.io --username "$JFROG_USER" --password-stdin
+
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker tag ${IMAGE_NAME}:latest trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:latest
+
+                        docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:latest
+                    '''
                 }
             }
         }
 
         stage('Push to DockerHub') {
+            when {
+                expression { params.ENVIRONMENT == 'DEV' }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
@@ -128,6 +182,17 @@ pipeline {
                     '''
                 }
             }
+        }
+    }
+    post {
+        success {
+            echo "Build ${BUILD_NUMBER} completed successfully for ${params.ENVIRONMENT}"
+        }
+        failure {
+            echo "Build ${BUILD_NUMBER} failed for ${params.ENVIRONMENT}"
+        }
+        always {
+            archiveArtifacts artifacts: 'source/build/*.tar.gz', followSymlinks: false
         }
     }
 }
@@ -289,6 +354,102 @@ docker run --rm \
   busybox \
   tar czvf /backup/jenkins_backup.tar.gz -C /jenkins_data .
 
+```
+
+## 🚀 Continuous Deployment Pipeline (CD)
+
+After successfully pushing the image to Docker Hub or JFrog (via CI), this pipeline handles the automatic deployment of the latest Docker image depending on the selected environment (DEV or PROD).
+
+### 💡 Trigger
+
+This pipeline is triggered manually (or from another pipeline) and deploys the latest image based on the chosen environment.
+
+### 📁 Jenkinsfile (CD)
+
+```groovy
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['DEV', 'PROD'],
+            description: 'Choose environment to deploy from'
+        )
+    }
+
+    environment {
+        DOCKER_USERNAME = 'costadevop'
+        IMAGE_NAME = "${DOCKER_USERNAME}/my-portfolio"
+        TAG  = "latest"
+        JFROG_REGISTRY = "trialam94b7.jfrog.io/docker-local"
+    }
+
+    stages {
+        stage('Pull Docker Image') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'DEV') {
+                        withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh '''
+                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                                docker pull ${IMAGE_NAME}:${TAG}
+                            '''
+                        }
+                    } else if (params.ENVIRONMENT == 'PROD') {
+                        withCredentials([usernamePassword(credentialsId: 'jfrog-docker', usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASS')]) {
+                            sh '''
+                                echo "$JFROG_PASS" | docker login $JFROG_REGISTRY --username "$JFROG_USER" --password-stdin
+                                docker pull $JFROG_REGISTRY/${IMAGE_NAME}:${TAG}
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                script {
+                    def finalImage = params.ENVIRONMENT == 'PROD' 
+                        ? "${env.JFROG_REGISTRY}/${IMAGE_NAME}:${TAG}" 
+                        : "${IMAGE_NAME}:${TAG}"
+
+                    sh '''
+                        docker rm -f my-portfolio || true
+                        docker run -d \
+                            --name my-portfolio \
+                            -p 8082:3000 \
+                            ''' + finalImage + '''
+                    '''
+                }
+            }
+        }
+
+        stage('Access Info') {
+            steps {
+                echo "Your app is running at: http://localhost:8082"
+            }
+        }
+    }
+}
+
+```
+
+## 📌 Notes
+	•	This pipeline supports multi-registry deployments (DockerHub for DEV, JFrog for PROD).
+	•	Always pulls the latest tag from the selected registry.
+	•	Automatically replaces existing container on port 8082.
+
+## 🚀 Trigger Automatically from CI?
+
+You can also configure your CI pipeline to trigger this CD pipeline after a successful build using:
+
+```groovy
+build job: 'my-cd-pipeline', parameters: [
+    string(name: 'ENVIRONMENT', value: 'PROD')
+]
 ```
 
 ## ✨ Author

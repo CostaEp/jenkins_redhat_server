@@ -1,6 +1,14 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['DEV', 'PROD'],
+            description: 'Choose the environment to deploy to'
+        )
+    }
+
     environment {
         DOCKER_USERNAME = 'costadevop'
         IMAGE_NAME = "${DOCKER_USERNAME}/my-portfolio"
@@ -30,26 +38,41 @@ pipeline {
                     sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                     sh 'docker images -a'
                     sh 'mkdir -p build'
-                    sh 'tar -czf build/artifact.tar.gz .'
-                   rchiveArtifacts artifacts: 'build/*.tar.gz', followSymlinks: false
+                    sh 'tar --exclude=build -czf build/artifact.tar.gz .'
+                    // archiveArtifacts artifacts: 'build/*.tar.gz', followSymlinks: false
                 }
             }
         }
 
         stage('Push to JFrog') {
+            when {
+                expression { params.ENVIRONMENT == 'PROD' }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'jfrog-docker', usernameVariable: 'JFROG_USER', passwordVariable: 'JFROG_PASS')]) {
+                    // sh '''
+                    //     echo "$JFROG_PASS" | docker login trialam94b7.jfrog.io --username "$JFROG_USER" --password-stdin
+
+                    //     docker tag ${IMAGE_NAME}:${IMAGE_TAG} trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                    //     docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                    // '''
                     sh '''
                         echo "$JFROG_PASS" | docker login trialam94b7.jfrog.io --username "$JFROG_USER" --password-stdin
 
                         docker tag ${IMAGE_NAME}:${IMAGE_TAG} trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker tag ${IMAGE_NAME}:latest trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:latest
+
                         docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:latest
                     '''
                 }
             }
         }
 
         stage('Push to DockerHub') {
+            when {
+                expression { params.ENVIRONMENT == 'DEV' }
+            }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
@@ -59,6 +82,17 @@ pipeline {
                     '''
                 }
             }
+        }
+    }
+    post {
+        success {
+            echo "Build ${BUILD_NUMBER} completed successfully for ${params.ENVIRONMENT}"
+        }
+        failure {
+            echo "Build ${BUILD_NUMBER} failed for ${params.ENVIRONMENT}"
+        }
+        always {
+            archiveArtifacts artifacts: 'source/build/*.tar.gz', followSymlinks: false
         }
     }
 }
