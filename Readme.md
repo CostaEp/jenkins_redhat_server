@@ -385,7 +385,7 @@ pipeline {
         DOCKER_USERNAME = 'costadevop'
         IMAGE_NAME = "${DOCKER_USERNAME}/my-portfolio"
         TAG  = "latest"
-        JFROG_REGISTRY = "trialam94b7.jfrog.io/docker-local"
+        JFROG_REGISTRY = "XXXXXXX.jfrog.io/docker-local"
     }
 
     stages {
