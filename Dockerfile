@@ -10,6 +10,12 @@ RUN dnf update -y && \
     dnf install -y java-17-openjdk wget git unzip shadow-utils sudo && \
     dnf clean all
 
+# Install Docker CLI manually (no RHEL subscription needed)
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-24.0.5.tgz -o docker.tgz && \
+    tar xzvf docker.tgz && \
+    mv docker/docker /usr/bin/ && \
+    chmod +x /usr/bin/docker && \
+    rm -rf docker docker.tgz
 # create group and jenkiins user
 RUN groupadd -g 1000 $JENKINS_GROUP && \
     useradd -u 1000 -g $JENKINS_GROUP -m -d $JENKINS_HOME -s /bin/bash $JENKINS_USER
