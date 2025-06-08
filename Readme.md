@@ -454,6 +454,14 @@ build job: 'my-cd-pipeline', parameters: [
 ]
 ```
 
+<table>
+<tr>
+  <td><strong>CI Pipeline</strong><br><img src="Jenkins-CI/ci image.png" width="450"/></td>
+  <td><strong>CD Pipeline</strong><br><img src="Jenkins-CD/cd image.png" width="450"/></td>
+</tr>
+</table>
+
+
 ## ✨ Author
 Created with 💙 by Costa Epshtein
 

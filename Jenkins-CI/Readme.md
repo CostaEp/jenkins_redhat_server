@@ -10,3 +10,9 @@ This pipeline handles the **Continuous Integration** process:
   - JFrog Artifactory (if ENV = `PROD`)
 
 It is triggered manually with an `ENVIRONMENT` choice parameter.
+
+### 📦 CI Pipeline Screenshot
+
+<p align="center">
+  <img src="ci image.png" width="450" alt="CI Pipeline Screenshot"/>
+</p>

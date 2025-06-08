@@ -7,3 +7,9 @@ This pipeline handles the **Continuous Deployment** process:
 - Replaces existing container if exists
 
 Use this pipeline to deploy the app after the CI job finishes successfully.
+
+### 📦 CD Pipeline Screenshot
+
+<p align="center">
+  <img src="cd image.png" width="450" alt="CD Pipeline Screenshot"/>
+</p>

@@ -87,6 +87,9 @@ pipeline {
     post {
         success {
             echo "Build ${BUILD_NUMBER} completed successfully for ${params.ENVIRONMENT}"
+            build job: 'pipeline-CD', parameters: [
+            string(name: 'ENVIRONMENT', value: "${params.ENVIRONMENT}")
+            ], wait: true, propagate: false
         }
         failure {
             echo "Build ${BUILD_NUMBER} failed for ${params.ENVIRONMENT}"
