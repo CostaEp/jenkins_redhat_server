@@ -71,10 +71,6 @@ pipeline {
 
                         docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG}
                         docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:latest
-                        // clean the Registry
-                        docker logout trialam94b7.jfrog.io || true
-
-                        docker push trialam94b7.jfrog.io/docker-local/${IMAGE_NAME}:${IMAGE_TAG} || echo "✅ Logout confirmed – push failed as expected"
                     '''
                 }
             }
